@@ -140,7 +140,7 @@ func (p *PsyNetRPC) GetSubRegions(ctx context.Context) ([]Region, error) {
 // GetGameServerPingList retrieves ping information for game servers.
 func (p *PsyNetRPC) GetGameServerPingList(ctx context.Context) ([]Server, error) {
 	var result GetGameServerPingListResponse
-	err := p.sendRequestSync(ctx, "GameServer/GetGameServerPingList v2", GetGameServerPingListRequest{}, &result)
+	err := p.sendRequestSync(ctx, "GameServer/GetGameServerPingList v2", &emptyRequest{}, &result)
 	if err != nil {
 		return nil, err
 	}

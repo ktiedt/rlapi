@@ -27,7 +27,7 @@ type GetActivePlaylistsResponse struct {
 // GetActivePlaylists retrieves all currently active playlists.
 func (p *PsyNetRPC) GetActivePlaylists(ctx context.Context) (*GetActivePlaylistsResponse, error) {
 	var result GetActivePlaylistsResponse
-	err := p.sendRequestSync(ctx, "Playlists/GetActivePlaylists v1", emptyRequest{}, &result)
+	err := p.sendRequestSync(ctx, "Playlists/GetActivePlaylists v2", emptyRequest{}, &result)
 	if err != nil {
 		return nil, err
 	}

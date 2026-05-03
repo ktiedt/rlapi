@@ -5,8 +5,8 @@ import "context"
 type PlaylistID int
 
 type PlaylistPopulation struct {
-	PlaylistID PlaylistID `json:"PlaylistID"`
-	Population int        `json:"Population"`
+	PlaylistID PlaylistID `json:"Playlist"`
+	Population int        `json:"PlayerCount"`
 }
 
 type GetPopulationResponse struct {
