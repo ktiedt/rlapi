@@ -334,3 +334,10 @@ func (p *PsyNetRPC) sendEvent(eventType EventType, content string) {
 			slog.String("content", content))
 	}
 }
+
+// Probe sends an arbitrary request to a service and unmarshals the result.
+func (p *PsyNetRPC) Probe(ctx context.Context, service string, data interface{}) (json.RawMessage, error) {
+	var result json.RawMessage
+	err := p.sendRequestSync(ctx, service, data, &result)
+	return result, err
+}
