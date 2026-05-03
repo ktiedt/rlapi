@@ -309,13 +309,25 @@ func (e *EGS) AuthenticateWithDevice() (*DeviceAuthResponse, error) {
 	return &deviceAuthResp, nil
 }
 
+// AuthenticateWithDeviceCode initiates the EOS device authorization flow.
+// This is a compatibility wrapper for backward compatibility.
+func (e *EGS) AuthenticateWithDeviceCode() (*DeviceAuthResponse, error) {
+	return e.AuthenticateWithDevice()
+}
+
+// PollDeviceAuthorization polls the EOS token endpoint once with a device code.
+// It returns the EOS token if authorization is complete, or an error (e.g., authorization_pending).
+func (e *EGS) PollDeviceAuthorization(device *DeviceAuthResponse) (*EOSTokenResponse, error) {
+	return e.requestEOSToken(map[string]string{
+		"grant_type":  "device_code",
+		"device_code": device.DeviceCode,
+	})
+}
+
 // WaitForDeviceAuthorization polls EOS until the user completes authorization at VerificationURI, then returns an EOS token.
 func (e *EGS) WaitForDeviceAuthorization(device *DeviceAuthResponse) (*EOSTokenResponse, error) {
 	for range device.ExpiresIn / device.Interval {
-		token, err := e.requestEOSToken(map[string]string{
-			"grant_type":  "device_code",
-			"device_code": device.DeviceCode,
-		})
+		token, err := e.PollDeviceAuthorization(device)
 		if err == nil {
 			return token, nil
 		}
@@ -323,4 +335,13 @@ func (e *EGS) WaitForDeviceAuthorization(device *DeviceAuthResponse) (*EOSTokenR
 	}
 
 	return nil, fmt.Errorf("device authorization timed out")
+}
+
+// PollEOSToken polls the token endpoint with a device code to get an EOS token.
+// This is a compatibility wrapper for backward compatibility.
+func (e *EGS) PollEOSToken(deviceCode string) (*EOSTokenResponse, error) {
+	return e.requestEOSToken(map[string]string{
+		"grant_type":  "device_code",
+		"device_code": deviceCode,
+	})
 }
