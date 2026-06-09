@@ -16,9 +16,9 @@ const (
 	egsClientID     = "34a02cf8f4414e29b15921876da36f9a"
 	egsClientSecret = "daafbccc737745039dffe53d94fc76cf"
 	egsOAuthURL     = "account-public-service-prod03.ol.epicgames.com"
-	eosAuthHeader   = "eHl6YTc4OTFwNUQ3czlSNkdtNm1vVEhXR2xvZXJwN0I6S25oMThkdTROVmxGcyszdVErWlBwRENWdG8wV1lmNHlYUDgrT2N3VnQxbw=="
 	eosDeploymentID = "da32ae9c12ae40e8a112c52e1f17f3ba" // Rocket League
 	eosClientID     = "xyza7891p5D7s9R6Gm6moTHWGloerp7B"
+	eosSecret       = "Knh18du4NVlFs+3uQ+ZPpDCVto0WYf4yXP8+OcwVt1o"
 )
 
 type TokenResponse struct {
@@ -221,7 +221,7 @@ func (e *EGS) requestEOSToken(params map[string]string) (*EOSTokenResponse, erro
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Basic "+eosAuthHeader)
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(eosClientID+":"+eosSecret)))
 	req.Header.Set("User-Agent", egsUserAgent)
 
 	resp, err := e.client.Do(req)
@@ -273,15 +273,17 @@ func (e *EGS) RevokeEOSToken(accessToken string) error {
 	return nil
 }
 
-// AuthenticateWithDeviceCode initiates the EOS device authorization flow
-func (e *EGS) AuthenticateWithDeviceCode() (*DeviceAuthResponse, error) {
+// AuthenticateWithDevice initiates the OAuth 2.0 Device Authorization Grant ([RFC 8628]).
+// Display VerificationURI and UserCode to the user, then call [EGS.WaitForDeviceAuthorization] to exchange for an EOS token.
+//
+// [RFC 8628]: https://datatracker.ietf.org/doc/html/rfc8628
+func (e *EGS) AuthenticateWithDevice() (*DeviceAuthResponse, error) {
 	req, err := http.NewRequest("POST", "https://api.epicgames.dev/epic/oauth/v2/deviceAuthorization", strings.NewReader("client_id="+eosClientID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Authorization", "Basic "+eosAuthHeader)
 	req.Header.Set("User-Agent", egsUserAgent)
 
 	resp, err := e.client.Do(req)
@@ -307,7 +309,59 @@ func (e *EGS) AuthenticateWithDeviceCode() (*DeviceAuthResponse, error) {
 	return &deviceAuthResp, nil
 }
 
-// PollEOSToken polls the token endpoint with a device code to get an EOS token
+// AuthenticateWithDeviceCode initiates the EOS device authorization flow.
+// This is a compatibility wrapper for backward compatibility.
+func (e *EGS) AuthenticateWithDeviceCode() (*DeviceAuthResponse, error) {
+	req, err := http.NewRequest("POST", "https://api.epicgames.dev/epic/oauth/v2/deviceAuthorization", strings.NewReader("client_id="+eosClientID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(eosClientID+":"+eosSecret)))
+	req.Header.Set("User-Agent", egsUserAgent)
+
+	resp, err := e.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %s: %s", resp.Status, string(body))
+	}
+
+	var deviceAuthResp DeviceAuthResponse
+	if err := json.Unmarshal(body, &deviceAuthResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &deviceAuthResp, nil
+}
+
+// WaitForDeviceAuthorization polls EOS until the user completes authorization at VerificationURI, then returns an EOS token.
+func (e *EGS) WaitForDeviceAuthorization(device *DeviceAuthResponse) (*EOSTokenResponse, error) {
+	for range device.ExpiresIn / device.Interval {
+		token, err := e.requestEOSToken(map[string]string{
+			"grant_type":  "device_code",
+			"device_code": device.DeviceCode,
+		})
+		if err == nil {
+			return token, nil
+		}
+		time.Sleep(time.Duration(device.Interval) * time.Second)
+	}
+
+	return nil, fmt.Errorf("device authorization timed out")
+}
+
+// PollEOSToken polls the token endpoint with a device code to get an EOS token.
+// This is a compatibility wrapper for backward compatibility.
 func (e *EGS) PollEOSToken(deviceCode string) (*EOSTokenResponse, error) {
 	return e.requestEOSToken(map[string]string{
 		"grant_type":  "device_code",
